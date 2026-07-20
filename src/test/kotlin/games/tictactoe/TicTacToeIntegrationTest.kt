@@ -19,7 +19,23 @@ class TicTacToeIntegrationTest {
         state = move(state, o, 1, 1)
         state = move(state, x, 0, 2)
         assertEquals(GameOutcome.PlayerWon(x), game.outcome(state))
-        assertEquals(5, state.history.events.size)
+        assertEquals(10, state.history.events.size)
         assertTrue(game.legalIntents(state).isEmpty())
+    }
+
+    @Test fun `a move returns its placement and automatic turn-yield trace`() {
+        val x = PlayerId("x")
+        val o = PlayerId("o")
+        val (game, initial) = TicTacToe.newGame(x, o)
+
+        val progression = GameEngine(game).playWithTrace(initial, x, PlaceMark(Cell(Row(1), Column(1))))
+
+        assertEquals(2, progression.steps.size)
+        assertTrue(progression.steps.first().cause is TransitionCause.PlayerDriven)
+        assertEquals(
+            TransitionCause.RuleDriven(RuleId("tic-tac-toe.automatic-turn-yield")),
+            progression.steps.last().cause,
+        )
+        assertEquals(o, progression.resultingState.currentPlayer)
     }
 }
