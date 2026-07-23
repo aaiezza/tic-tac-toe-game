@@ -56,6 +56,10 @@ sealed interface TicTacToeStatus {
 
     data class AwaitingPlacement(override val turn: TurnContext, val activeMark: Mark) : TicTacToeStatus
 
+    data class ResolvingPlacement(val player: PlayerId, val mark: Mark) : TicTacToeStatus {
+        override val turn = null
+    }
+
     data class Won(val winner: PlayerId, val winningMark: Mark) : TicTacToeStatus {
         override val turn = null
     }
@@ -82,6 +86,10 @@ data class TicTacToeState(
                 val activePlayer = registry.playerOn(status.activeMark)
                 require(status.turn.owner == activePlayer) { "The turn owner must control the active mark." }
                 require(status.turn.decisionActors == setOf(activePlayer)) { "Only the active mark's player may act." }
+            }
+
+            is TicTacToeStatus.ResolvingPlacement -> require(status.player == registry.playerOn(status.mark)) {
+                "The player must control the mark being resolved."
             }
 
             is TicTacToeStatus.Won -> require(status.winner == registry.playerOn(status.winningMark)) {
@@ -127,7 +135,13 @@ class TicTacToe private constructor() : ConfigurableGameDefinition<TicTacToeStat
         )
     }
     override fun reduce(state: TicTacToeState, event: TicTacToeEvent): TicTacToeState = when (event) {
-        is TicTacToeEvent.MarkPlaced -> state.copy(cells = state.cells + (event.cell to event.mark))
+        is TicTacToeEvent.MarkPlaced -> state.copy(
+            cells = state.cells + (event.cell to event.mark),
+            status = TicTacToeStatus.ResolvingPlacement(
+                player = checkNotNull(state.turnOwner),
+                mark = event.mark,
+            ),
+        )
 
         is TicTacToeEvent.TurnAdvanced -> state.copy(
             status = TicTacToeStatus.AwaitingPlacement(TurnContext(event.nextPlayer), event.nextMark),
@@ -146,6 +160,7 @@ class TicTacToe private constructor() : ConfigurableGameDefinition<TicTacToeStat
     }
     override fun outcome(state: TicTacToeState): GameOutcome = when (val status = state.status) {
         is TicTacToeStatus.AwaitingPlacement -> GameOutcome.InProgress
+        is TicTacToeStatus.ResolvingPlacement -> GameOutcome.InProgress
         is TicTacToeStatus.Won -> GameOutcome.PlayerWon(status.winner)
         TicTacToeStatus.Draw -> GameOutcome.Draw
     }

@@ -110,4 +110,34 @@ class TicTacToeIntegrationTest {
             state.registry.markOf(PlayerId("unknown"))
         }
     }
+
+    @Test fun `terminal renderer explains placement before game completion`() {
+        val x = PlayerId("Ada")
+        val o = PlayerId("Grace")
+        val (game, initial) = TicTacToe.newGame(x, o)
+        val engine = GameEngine(game)
+        val beforeWinningMove = listOf(
+            x to Cell(Row(0), Column(0)),
+            o to Cell(Row(1), Column(0)),
+            x to Cell(Row(0), Column(1)),
+            o to Cell(Row(1), Column(1)),
+        ).fold(initial) { state, (actor, cell) ->
+            engine.play(state, actor, PlaceMark(cell))
+        }
+
+        val progression = engine.playWithTrace(
+            beforeWinningMove,
+            x,
+            PlaceMark(Cell(Row(0), Column(2))),
+        )
+        val rendered = TicTacToeTerminalRenderer.renderProgression(progression)
+
+        val placement = rendered.indexOf("Player-driven: Ada places X")
+        val completion = rendered.indexOf("Rule-driven: tic-tac-toe.game-end")
+        assertTrue(placement >= 0)
+        assertTrue(completion > placement)
+        assertTrue("Status: resolving X placement by Ada" in rendered)
+        assertTrue("Ada wins as X" in rendered)
+        assertTrue("Status: won" in rendered)
+    }
 }
